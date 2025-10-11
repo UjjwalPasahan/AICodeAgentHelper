@@ -14,20 +14,18 @@ import crypto from "crypto";
 import { diffLines, Change } from "diff";
 
 const CONFIG = {
-  PORT: parseInt(process.env.PORT || "3000"),
-  EURON_API_KEY:
-    "euri-9b898b860443d8ad49b2305502e749d1658fbc05e8fef4cb56dd80ae888f60f3",
-  EURON_BASE_URL: "https://api.euron.one/api/v1/euri",
-  PLANNING_MODEL: "gpt-4.1-mini",
-  CODE_MODEL: "gpt-5-mini-2025-08-07",
-  EMBEDDING_MODEL: "text-embedding-3-small",
-  MONGO_URI:
-    "mongodb+srv://ujjwalPasahan:Pusu48171@cluster0.yt1gprk.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0",
-  DB_NAME: "ai_code_assistant",
-  CHROMA_API_KEY: "ck-6Vj3AEc2Ju9mSxw3MHQWBZyRUGU48DPjWN22KaiVPG2M",
-  CHROMA_TENANT: "af49e641-4574-472f-a3fb-e5c493750373",
-  CHROMA_DATABASE: "testing",
-
+  PORT: parseInt(process.env.PORT || '3000'),
+  EURON_API_KEY: "euri-9b898b860443d8ad49b2305502e749d1658fbc05e8fef4cb56dd80ae888f60f3",
+  EURON_BASE_URL: 'https://api.euron.one/api/v1/euri',
+  PLANNING_MODEL: 'gpt-4.1-mini',
+  CODE_MODEL: 'gpt-5-mini-2025-08-07',
+  EMBEDDING_MODEL: 'text-embedding-3-small',
+  MONGO_URI: "mongodb+srv://ujjwalPasahan:Pusu48171@cluster0.yt1gprk.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0",
+  DB_NAME: 'ai_code_assistant',
+  CHROMA_API_KEY: 'ck-6Vj3AEc2Ju9mSxw3MHQWBZyRUGU48DPjWN22KaiVPG2M',
+  CHROMA_TENANT: 'af49e641-4574-472f-a3fb-e5c493750373',
+  CHROMA_DATABASE: 'testing',
+  
   CHUNK_SIZE: 600,
   CHUNK_OVERLAP: 100,
   MAX_CONTEXT_TOKENS: 6000,
