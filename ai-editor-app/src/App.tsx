@@ -34,21 +34,21 @@ export default function App() {
   const [showPlanning, setShowPlanning] = useState(true);
   const [showChat, setShowChat] = useState(true);
 
-  const handleOpenFolder = async () => {
-    try {
-      if ('showDirectoryPicker' in window) {
-        const dirHandle = await (window as any).showDirectoryPicker();
-        setCurrentFolder(dirHandle.name);
-        const fileTree = await processDirectory(dirHandle);
-        setFiles(fileTree);
-        setActiveFile(null);
-      } else {
-        alert('File System Access API not supported');
-      }
-    } catch (err) {
-      console.error('Error opening folder:', err);
-    }
-  };
+  // const handleOpenFolder = async () => {
+  //   try {
+  //     if ('showDirectoryPicker' in window) {
+  //       const dirHandle = await (window as any).showDirectoryPicker();
+  //       setCurrentFolder(dirHandle.name);
+  //       const fileTree = await processDirectory(dirHandle);
+  //       setFiles(fileTree);
+  //       setActiveFile(null);
+  //     } else {
+  //       alert('File System Access API not supported');
+  //     }
+  //   } catch (err) {
+  //     console.error('Error opening folder:', err);
+  //   }
+  // };
 
   const handleFileChange = (content: string) => {
     if (activeFile) {
@@ -101,6 +101,64 @@ export default function App() {
       setTaskSteps(updatedSteps);
       console.error('Step execution error:', error);
     }
+  };
+
+
+  const handleOpenFolder = async () => {
+    try {
+      if ('showDirectoryPicker' in window) {
+        const dirHandle = await (window as any).showDirectoryPicker();
+        
+        // Store the directory handle reference for later use
+        (window as any).currentDirHandle = dirHandle;
+        
+        // For display and API calls, we need to construct a path
+        // Since we can't get absolute path reliably, we'll use a workaround
+        const folderPath = await getFolderPath(dirHandle);
+        
+        console.log('📁 Opened folder:', folderPath);
+        setCurrentFolder(folderPath);
+        
+        const fileTree = await processDirectory(dirHandle);
+        setFiles(fileTree);
+        setActiveFile(null);
+      } else {
+        alert('File System Access API not supported');
+      }
+    } catch (err) {
+      console.error('Error opening folder:', err);
+    }
+  };
+
+  // Helper to get folder path
+  const getFolderPath = async (dirHandle: any): Promise<string> => {
+    try {
+      // Try to get the first file to extract path information
+      for await (const entry of dirHandle.values()) {
+        if (entry.kind === 'file') {
+          const file = await entry.getFile();
+          
+          // Try different path properties
+          const possiblePath = (file as any).path || (file as any).webkitRelativePath;
+          
+          if (possiblePath) {
+            // Extract directory from file path
+            const lastSlash = Math.max(possiblePath.lastIndexOf('/'), possiblePath.lastIndexOf('\\'));
+            if (lastSlash > 0) {
+              const dirPath = possiblePath.substring(0, lastSlash);
+              console.log('✅ Extracted path from file:', dirPath);
+              return dirPath;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Could not extract path from files:', err);
+    }
+    
+    // Fallback: just use directory name
+    console.warn('⚠️ Using fallback folder name:', dirHandle.name);
+    return dirHandle.name;
   };
 
   return (

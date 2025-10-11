@@ -31,10 +31,37 @@ export const sendQuery = async (
         generateAll: false,
       }),
     });
+
+    // Check if response is OK
+    if (!response.ok) {
+      const contentType = response.headers.get("content-type");
+
+      // Try to get error message from JSON
+      if (contentType && contentType.includes("application/json")) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || `HTTP ${response.status}: ${response.statusText}`
+        );
+      }
+
+      // If HTML error page, throw generic error
+      throw new Error(
+        `Server error: ${response.status} ${response.statusText}. Is the backend running on port 3000?`
+      );
+    }
+
     return await response.json();
-  } catch (error) {
+  } catch (error: any) {
     console.error("Failed to send query:", error);
-    return null;
+
+    // Re-throw with more helpful message
+    if (error.message.includes("Failed to fetch")) {
+      throw new Error(
+        "Cannot connect to backend. Make sure the server is running on http://localhost:3000"
+      );
+    }
+
+    throw error;
   }
 };
 

@@ -1356,7 +1356,7 @@ Relevant files: ${context.relevantFiles.join(", ")}`;
 }
 
 // ============================================================================
-// API ROUTES (Enhanced with streaming and sessions)
+// API ROUTES (Clean - No Duplicates)
 // ============================================================================
 
 const app = express();
@@ -1366,7 +1366,7 @@ app.use(express.json({ limit: "10mb" }));
 let assistant: CodeAssistantService;
 
 // Health check
-app.get("/health", (req, res) => {
+app.get("/health", (req: any, res: any) => {
   res.json({
     status: "ok",
     timestamp: new Date(),
@@ -1374,43 +1374,8 @@ app.get("/health", (req, res) => {
   });
 });
 
-app.post("/api/debug-query", async (req, res) => {
-  try {
-    const { query, projectPath } = req.body;
-
-    if (!query || !projectPath) {
-      return res.status(400).json({ error: "Query and projectPath required" });
-    }
-
-    console.log("🐛 DEBUG MODE - Processing query...");
-
-    const result = await assistant.processQuery(
-      query,
-      projectPath,
-      undefined,
-      true
-    );
-
-    console.log("🐛 DEBUG - Response structure:", {
-      hasCode: !!result.code,
-      codeFiles: result.code ? Object.keys(result.code) : [],
-      hasDiffs: !!result.diffs,
-      diffsCount: result.diffs?.length || 0,
-      generatedCodeCount: result.generatedCode?.length || 0,
-    });
-
-    res.json(result);
-  } catch (error: any) {
-    console.error("🐛 DEBUG - Error:", error);
-    res.status(500).json({
-      error: error.message,
-      stack: error.stack,
-    });
-  }
-});
-
 // Create session
-app.post("/api/session", async (req, res) => {
+app.post("/api/session", async (req: any, res: any) => {
   try {
     const { projectPath } = req.body;
 
@@ -1428,7 +1393,8 @@ app.post("/api/session", async (req, res) => {
   }
 });
 
-app.post("/api/apply-diff", async (req, res) => {
+// Apply diff to file
+app.post("/api/apply-diff", async (req: any, res: any) => {
   try {
     const { projectPath, file, newContent } = req.body;
 
@@ -1438,32 +1404,44 @@ app.post("/api/apply-diff", async (req, res) => {
         .json({ error: "projectPath, file, and newContent required" });
     }
 
-    // Ensure we're working with absolute paths correctly
+    // Handle both absolute and relative paths
     let absoluteProjectPath = projectPath;
+    
     if (!path.isAbsolute(projectPath)) {
-      absoluteProjectPath = path.resolve(process.cwd(), projectPath);
+      const possiblePaths = [
+        path.resolve(process.cwd(), projectPath),
+        path.resolve(process.cwd(), "..", projectPath),
+        path.join(require("os").homedir(), "Desktop", projectPath),
+        path.join(require("os").homedir(), "Documents", projectPath),
+      ];
+
+      for (const testPath of possiblePaths) {
+        try {
+          await fs.access(testPath);
+          absoluteProjectPath = testPath;
+          break;
+        } catch {
+          continue;
+        }
+      }
     }
 
-    // Make sure file is relative, not absolute
+    // Make sure file is relative
     let relativeFile = file;
     if (path.isAbsolute(file)) {
       relativeFile = path.relative(absoluteProjectPath, file);
     }
 
-    // Join paths correctly
     const fullPath = path.join(absoluteProjectPath, relativeFile);
     const dir = path.dirname(fullPath);
 
     console.log("Applying diff:", {
-      projectPath: absoluteProjectPath,
-      file: relativeFile,
-      fullPath: fullPath,
+      receivedProjectPath: projectPath,
+      resolvedProjectPath: absoluteProjectPath,
+      finalFullPath: fullPath,
     });
 
-    // Create directory if it doesn't exist
     await fs.mkdir(dir, { recursive: true });
-
-    // Write the file
     await fs.writeFile(fullPath, newContent, "utf-8");
 
     console.log(`✅ Applied changes to ${relativeFile}`);
@@ -1479,8 +1457,8 @@ app.post("/api/apply-diff", async (req, res) => {
   }
 });
 
-// Add endpoint to get diff for a specific file:
-app.post("/api/diff-file", async (req, res) => {
+// Get diff for specific file
+app.post("/api/diff-file", async (req: any, res: any) => {
   try {
     const { projectPath, file, newContent } = req.body;
 
@@ -1501,8 +1479,8 @@ app.post("/api/diff-file", async (req, res) => {
   }
 });
 
-// Standard query (non-streaming)
-app.post("/api/query", async (req, res) => {
+// Main query endpoint
+app.post("/api/query", async (req: any, res: any) => {
   try {
     const { query, projectPath, sessionId, generateAll = true } = req.body;
 
@@ -1510,36 +1488,41 @@ app.post("/api/query", async (req, res) => {
       return res.status(400).json({ error: "Query and projectPath required" });
     }
 
+    // Handle both absolute and relative paths
     let absolutePath = projectPath;
-
+    
     if (!path.isAbsolute(projectPath)) {
-      const cwdPath = path.resolve(process.cwd(), projectPath);
-      const parentPath = path.resolve(process.cwd(), "..", projectPath);
-      const desktopPath = path.join(
-        require("os").homedir(),
-        "Desktop",
-        projectPath
-      );
+      const possiblePaths = [
+        path.resolve(process.cwd(), projectPath),
+        path.resolve(process.cwd(), "..", projectPath),
+        path.join(require("os").homedir(), "Desktop", projectPath),
+        path.join(require("os").homedir(), "Documents", projectPath),
+      ];
 
-      try {
-        await fs.access(cwdPath);
-        absolutePath = cwdPath;
-      } catch {
+      let foundPath = null;
+      for (const testPath of possiblePaths) {
         try {
-          await fs.access(parentPath);
-          absolutePath = parentPath;
+          await fs.access(testPath);
+          foundPath = testPath;
+          console.log(`✅ Found project at: ${testPath}`);
+          break;
         } catch {
-          try {
-            await fs.access(desktopPath);
-            absolutePath = desktopPath;
-          } catch {
-            absolutePath = cwdPath;
-          }
+          continue;
         }
+      }
+
+      if (foundPath) {
+        absolutePath = foundPath;
+      } else {
+        console.warn(`⚠️ Could not find project path: ${projectPath}`);
+        return res.status(404).json({ 
+          error: `Project path not found: ${projectPath}`,
+          triedPaths: possiblePaths
+        });
       }
     }
 
-    console.log(`📥 Query: "${query}" | Session: ${sessionId || "new"}`);
+    console.log(`📥 Query: "${query}" | Project: ${absolutePath} | Session: ${sessionId || "new"}`);
 
     const result = await assistant.processQuery(
       query,
@@ -1547,9 +1530,6 @@ app.post("/api/query", async (req, res) => {
       sessionId,
       generateAll
     );
-
-    // ⚠️ DO NOT AUTO-APPLY CHANGES - Just return diffs
-    // REMOVED: any fs.writeFile or applyCode calls here
 
     res.json(result);
   } catch (error: any) {
@@ -1562,7 +1542,7 @@ app.post("/api/query", async (req, res) => {
 });
 
 // Streaming query (SSE)
-app.post("/api/query/stream", async (req, res) => {
+app.post("/api/query/stream", async (req: any, res: any) => {
   try {
     const { query, projectPath, sessionId } = req.body;
 
@@ -1572,7 +1552,6 @@ app.post("/api/query/stream", async (req, res) => {
         .json({ error: "Query, projectPath, and sessionId required" });
     }
 
-    // Set up SSE
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
@@ -1605,7 +1584,7 @@ app.post("/api/query/stream", async (req, res) => {
 });
 
 // Get conversation history
-app.get("/api/session/:sessionId/history", async (req, res) => {
+app.get("/api/session/:sessionId/history", async (req: any, res: any) => {
   try {
     const { sessionId } = req.params;
     const mongo = new MongoService();
@@ -1618,8 +1597,8 @@ app.get("/api/session/:sessionId/history", async (req, res) => {
   }
 });
 
-// Apply code changes
-app.post("/api/apply-code", async (req, res) => {
+// Apply code changes (legacy - prefer apply-diff)
+app.post("/api/apply-code", async (req: any, res: any) => {
   try {
     const { projectPath, code } = req.body;
 
@@ -1643,8 +1622,8 @@ app.post("/api/apply-code", async (req, res) => {
   }
 });
 
-// Get diffs without applying
-app.post("/api/preview-changes", async (req, res) => {
+// Preview changes without applying
+app.post("/api/preview-changes", async (req: any, res: any) => {
   try {
     const { projectPath, code } = req.body;
 
@@ -1662,7 +1641,7 @@ app.post("/api/preview-changes", async (req, res) => {
 });
 
 // Generate specific step
-app.post("/api/generate-step", async (req, res) => {
+app.post("/api/generate-step", async (req: any, res: any) => {
   try {
     const { step, projectPath, projectContext } = req.body;
 
@@ -1692,8 +1671,8 @@ app.post("/api/generate-step", async (req, res) => {
   }
 });
 
-// Analytics endpoint
-app.get("/api/stats", async (req, res) => {
+// Analytics
+app.get("/api/stats", async (req: any, res: any) => {
   try {
     const mongo = new MongoService();
     await mongo.connect();
@@ -1711,7 +1690,7 @@ app.get("/api/stats", async (req, res) => {
     res.json({
       totalSessions,
       totalQueries,
-      recentSessions: recentSessions.map((s) => ({
+      recentSessions: recentSessions.map((s: any) => ({
         sessionId: s.sessionId,
         projectPath: s.projectPath,
         messageCount: s.messages.length,

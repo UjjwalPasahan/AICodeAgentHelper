@@ -72,10 +72,32 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     if (!input.trim() || !currentFolder || isProcessing) return;
 
     let currentSessionId = sessionId;
+    
+    // Create session if needed
     if (!currentSessionId) {
-      currentSessionId = await createSession(currentFolder);
-      if (!currentSessionId) return;
-      onSessionCreate(currentSessionId);
+      try {
+        currentSessionId = await createSession(currentFolder);
+        if (!currentSessionId) {
+          setMessages(prev => [...prev, {
+            id: Date.now().toString(),
+            role: 'assistant',
+            content: '❌ Failed to create session. Please try reopening the folder.',
+            timestamp: new Date()
+          }]);
+          return;
+        }
+        onSessionCreate(currentSessionId);
+        console.log('✅ Session created:', currentSessionId);
+      } catch (err) {
+        console.error('Session creation error:', err);
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: '❌ Error creating session. Check console for details.',
+          timestamp: new Date()
+        }]);
+        return;
+      }
     }
 
     const userMessage: Message = {
@@ -90,7 +112,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     setIsProcessing(true);
 
     try {
+      console.log('📤 Sending query:', { query: input, projectPath: currentFolder, sessionId: currentSessionId });
+      
       const data = await sendQuery(input, currentFolder, currentSessionId);
+      
+      console.log('📥 Received response:', data);
       
       if (data) {
         const filesModified = data.diffs?.length || 0;
@@ -119,11 +145,18 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       } else {
         throw new Error('No response from server');
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.error('❌ Query error:', error);
+      
+      const errorMsg = error.message || 'Unknown error';
+      const isPathError = errorMsg.includes('not found') || errorMsg.includes('ENOENT');
+      
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'Error: Failed to process request.',
+        content: isPathError 
+          ? `❌ Error: Could not find project folder "${currentFolder}". Please try reopening the folder.`
+          : `❌ Error: ${errorMsg}`,
         timestamp: new Date()
       }]);
     } finally {
