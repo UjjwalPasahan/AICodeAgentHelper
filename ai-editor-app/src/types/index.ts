@@ -34,6 +34,13 @@ export interface CodeResult {
   agent: string;
 }
 
+export interface DiffLine {
+  type: 'add' | 'remove' | 'context';
+  content: string;
+  oldLineNumber?: number;
+  newLineNumber?: number;
+}
+
 export interface FileDiff {
   file: string;
   language: string;
@@ -42,7 +49,45 @@ export interface FileDiff {
   preview: string;
 }
 
+export interface QueryResponse {
+  sessionId: string;
+  query: string;
+  steps: TaskStep[];
+  generatedCode: [];
+  code: Record<string, string>;
+  diffs: FileDiff[];
+  diffSummary: {
+    filesModified: number;
+    linesAdded: number;
+    linesRemoved: number;
+    netChange: number;
+  };
+  remainingSteps: TaskStep[];
+  timestamp: Date;
+  relevantFiles: string[];
+  tokensUsed: number;
+  executionTime: number;
+  filesModified: number;
+}
+
+export interface Session {
+  sessionId: string;
+  projectPath: string;
+  messages: Message[];
+  createdAt: Date;
+  lastActiveAt: Date;
+}
+
+
 export interface Position {
   x: number;
   y: number;
+}
+
+export interface DiffHunk {
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: DiffLine[];
 }

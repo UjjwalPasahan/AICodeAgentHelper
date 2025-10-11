@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { FileItem, TaskStep } from './types';
-import { createSession, sendQuery, generateStep } from './utils/api';
+import { createSession, sendQuery, generateStep, previewChanges } from './utils/api';
 import { processDirectory } from './utils/fileSystem';
 import AppLayout from './components/layout/AppLayout';
 import Sidebar from './components/layout/Sidebar';
@@ -73,7 +73,6 @@ export default function App() {
     const stepIndex = taskSteps.findIndex(s => s.step === stepNum);
     if (stepIndex === -1) return;
 
-    // Update status to executing
     const updatedSteps = [...taskSteps];
     updatedSteps[stepIndex] = { ...updatedSteps[stepIndex], status: 'executing' };
     setTaskSteps(updatedSteps);
@@ -82,16 +81,25 @@ export default function App() {
       const result = await generateStep(taskSteps[stepIndex], currentFolder, sessionId);
       
       if (result) {
-        // Update status to completed
         updatedSteps[stepIndex] = { ...updatedSteps[stepIndex], status: 'completed' };
         setTaskSteps(updatedSteps);
 
-        // Show code preview
-        alert(`Step ${stepNum} completed!\n\nFiles modified: ${Object.keys(result.code).length}\nTokens used: ${result.tokensUsed}`);
+        // Generate and preview diffs
+        if (result.code) {
+          const diffData = await previewChanges(currentFolder, result.code);
+          
+          if (diffData && diffData.diffs) {
+            const totalFiles = diffData.diffs.length;
+            const totalLines = diffData.diffs.reduce((sum: number, d: any) => sum + d.added + d.removed, 0);
+            
+            alert(`Step ${stepNum} completed!\n\nFiles to modify: ${totalFiles}\nTotal changes: ${totalLines} lines\n\nReview changes in the Planning Assistant panel.`);
+          }
+        }
       }
     } catch (error) {
       updatedSteps[stepIndex] = { ...updatedSteps[stepIndex], status: 'failed' };
       setTaskSteps(updatedSteps);
+      console.error('Step execution error:', error);
     }
   };
 
@@ -152,19 +160,20 @@ export default function App() {
           {/* Chat Panel */}
           {showChat && (
             <ResizablePanel
-              title="Planning Assistant"
-              width="350px"
-              height="300px"
-              direction="both"
-            >
-              <ChatPanel
-                currentFolder={currentFolder}
-                sessionId={sessionId}
-                onSessionCreate={setSessionId}
-                onPlanGenerated={handlePlanGenerated}
-                onCodeGenerated={(result) => {}}
-              />
-            </ResizablePanel>
+    title="Planning Assistant"
+    width="350px"
+    height="500px"  /* Changed from 300px to 500px */
+    direction="both"
+    minHeight={400}  /* Added minimum height */
+  >
+    <ChatPanel
+      currentFolder={currentFolder}
+      sessionId={sessionId}
+      onSessionCreate={setSessionId}
+      onPlanGenerated={handlePlanGenerated}
+      onCodeGenerated={(result) => {}}
+    />
+  </ResizablePanel>
           )}
         </div>
       </div>
